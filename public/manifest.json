@@ -1,0 +1,22 @@
+{
+  "id": "/",
+  "name": "RIVEROSIMITATION",
+  "short_name": "RiverosIA",
+  "description": "ChatIA de RIVEROSIMITATION",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone"],
+  "orientation": "portrait",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "icons": [
+    {
+      "src": "/logo.jpg",
+      "sizes": "any",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}
