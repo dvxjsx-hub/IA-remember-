@@ -11,8 +11,6 @@ function normalize(value = "") { return String(value).toLowerCase().normalize("N
 function tokens(value) { return normalize(value).split(" ").filter(t => t.length >= 2 && !STOPWORDS.has(t)); }
 function stem(t) { return t.length > 5 ? t.replace(/(mente|ando|iendo|ados|adas|idos|idas|es|os|as|s)$/i, "") : t; }
 
-// Anniversary.txt es la fuente histórica canónica. El mismo orden de parseo
-// debe coincidir con build-memory-index.js porque los chunks usan start/end.
 function loadChatMemory() {
   if (!fs.existsSync(config.CHAT_DIR)) return [];
   const files = fs.readdirSync(config.CHAT_DIR).filter(n => /^Anniversary.*\.txt$/i.test(n)).sort();
@@ -34,6 +32,13 @@ function lexicalScore(item, query) { const q = normalize(query), terms = tokens(
 function truncateMemory(rows) { const out = []; let chars = 0; for (const m of rows) { if (out.length >= MAX_MEMORY_MESSAGES) break; const room = MAX_MEMORY_CHARS - chars; if (room <= 80) break; const content = m.content.length > room ? m.content.slice(0, room) + "…" : m.content; out.push({ ...m, content }); chars += content.length + 32; } return out; }
 function formatMemory(rows) { return rows.map((m, i) => `${i + 1}. [${m.date}] ${m.speaker}: ${m.content}`).join("\n"); }
 
+function randomMemoryWindow(size = 10) {
+  if (!CHAT_MEMORY.length) return [];
+  const maxStart = Math.max(0, CHAT_MEMORY.length - size);
+  const start = Math.floor(Math.random() * (maxStart + 1));
+  return CHAT_MEMORY.slice(start, start + size);
+}
+
 async function searchMemory(query) {
   const lexical = CHAT_MEMORY.map((m, i) => ({ i, score: lexicalScore(m, query) })).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, 30);
   const semantic = await embeddingsService.semanticSearch(query);
@@ -47,4 +52,4 @@ async function searchMemory(query) {
   return { results: truncateMemory(indexes.slice(0, MAX_MEMORY_MESSAGES).map(i => CHAT_MEMORY[i])), confidence: Math.min(1, (ranked[0]?.score || 0) / 75), semantic: semantic.length > 0 };
 }
 function stats() { return { messageCount: CHAT_MEMORY.length, ...embeddingsService.stats() }; }
-module.exports = { searchMemory, detectMemoryIntent, extractQuery, formatMemory, stats };
+module.exports = { searchMemory, detectMemoryIntent, extractQuery, formatMemory, randomMemoryWindow, stats };
