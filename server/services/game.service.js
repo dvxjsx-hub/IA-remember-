@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const { config } = require("../config");
 const memoryService = require("./memory.service");
 const { callGroq } = require("./groq.service");
+
 const games = new Map();
 const GAME_TTL_MS = 30 * 60 * 1000;
 
@@ -9,28 +10,26 @@ function pickType() { return ["date", "complete", "who", "event"][Math.floor(Mat
 function normalizeAnswer(value = "") { return String(value).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9/ -]/g, " ").replace(/\s+/g, " ").trim(); }
 function cleanup() { const now = Date.now(); for (const [id, game] of games) if (now - game.createdAt > GAME_TTL_MS) games.delete(id); }
 
-async function createChallenge() {
-  const type = pickType();
-  const seed = memoryService.randomMemoryWindow();
-  if (!seed.length) throw new Error("No hay memoria disponible para iniciar el juego.");
+function fallbackChallenge(type, seed) {
+  const item = seed[Math.floor(Math.random() * seed.length)];
+  if (type === "date") return { type, narration: "Vamos con un recuerdo concreto. 📅", question: "¿Qué día aparece asociado a este recuerdo?", answer: item.date, accepted: [item.date], hint: "Mira la fecha del recuerdo." };
+  if (type === "who") return { type, narration: "Ahora importa quién estuvo detrás de este recuerdo. 👤", question: `¿Quién escribió este mensaje: “${item.content.slice(0, 90)}${item.content.length > 90 ? "…" : ""}” ?`, answer: item.speaker, accepted: [item.speaker, item.persona], hint: "Piensa en quién aparece al inicio de la línea." };
+  if (type === "complete") {
+    const words = item.content.split(/\s+/).filter(Boolean);
+    if (words.length >= 6) { const start = Math.max(0, Math.floor(words.length / 3)); const count = Math.min(4, words.length - start); const answer = words.slice(start, start + count).join(" "); const masked = [...words]; masked.splice(start, count, "______"); return { type, narration: "A ver si recuerdas exactamente esta frase. 🧩", question: `Completa el recuerdo: “${masked.join(" ")}"`, answer, accepted: [answer], hint: "La frase está en la memoria real." }; }
+  }
+  return { type: "event", narration: "Vamos a comprobar si recuerdas lo que ocurrió. 🧠", question: `¿Qué ocurrió en este recuerdo? “${item.content.slice(0, 120)}${item.content.length > 120 ? "…" : ""}”`, answer: item.content, accepted: [item.content], hint: "Describe el hecho principal." };
+}
+
+async function aiChallenge(type, seed) {
   const transcript = memoryService.formatMemory(seed);
-  const instructions = {
-    date: "Pregunta qué día ocurrió un recuerdo. La respuesta correcta debe ser una fecha que aparezca explícitamente en la evidencia.",
-    complete: "Elige una frase real y reemplaza una parte importante por ______. La respuesta debe estar en la evidencia.",
-    who: "Pregunta quién dijo una frase o realizó una acción. Debe poder comprobarse en la evidencia.",
-    event: "Pregunta qué ocurrió. La respuesta debe ser un hecho concreto y verificable en la evidencia."
-  }[type];
-  const data = await callGroq({
-    model: config.GROQ_MODEL,
-    max_tokens: 300,
-    temperature: 0.45,
-    messages: [
-      { role: "system", content: `Eres el narrador de IA-REMEMBER, un juego de memoria basado en una historia real. Usa EXCLUSIVAMENTE la evidencia. Nunca inventes, combines ni alteres recuerdos. ${instructions}\n\nDevuelve SOLO JSON válido con exactamente: {"narration":"narración breve y natural","question":"pregunta","answer":"respuesta exacta","accepted":["variaciones realmente equivalentes"],"hint":"pista breve sin revelar la respuesta"}. Para fechas usa DD/MM/AAAA. narration y question NO pueden contener la respuesta.` },
-      { role: "user", content: `EVIDENCIA REAL:\n${transcript}` }
-    ]
-  });
+  const instructions = { date: "Pregunta qué día ocurrió un recuerdo. La respuesta debe aparecer explícitamente en la evidencia.", complete: "Elige una frase real y reemplaza una parte importante por ______. La respuesta debe aparecer literalmente en la evidencia.", who: "Pregunta quién dijo una frase o realizó una acción. Debe poder comprobarse en la evidencia.", event: "Pregunta qué ocurrió. La respuesta debe ser un hecho concreto verificable en la evidencia." }[type];
+  const data = await callGroq({ model: config.GROQ_MODEL, max_tokens: 350, temperature: 0.45, messages: [
+    { role: "system", content: `Eres el narrador de IA-REMEMBER, un juego de memoria basado en una historia real. Usa EXCLUSIVAMENTE la evidencia. Nunca inventes, combines ni alteres recuerdos. ${instructions}\n\nDevuelve SOLO JSON válido: {"narration":"narración breve y natural","question":"pregunta","answer":"respuesta exacta","accepted":["variaciones realmente equivalentes"],"hint":"pista breve sin revelar la respuesta"}. narration y question NO pueden contener la respuesta.` },
+    { role: "user", content: `EVIDENCIA REAL:\n${transcript}` }
+  ] });
   let raw = data?.choices?.[0]?.message?.content?.trim() || "";
-  raw = raw.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+  raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
   const challenge = JSON.parse(raw);
   if (!challenge.question || !challenge.answer || typeof challenge.answer !== "string") throw new Error("El reto generado no es válido.");
   challenge.type = type;
@@ -38,6 +37,15 @@ async function createChallenge() {
   challenge.accepted.push(challenge.answer);
   return challenge;
 }
+
+async function createChallenge() {
+  const type = pickType();
+  const seed = memoryService.randomMemoryWindow(10);
+  if (!seed.length) throw new Error("No hay memoria disponible para iniciar el juego.");
+  try { return await aiChallenge(type, seed); }
+  catch (err) { console.error("Generación IA del reto:", err.message); return fallbackChallenge(type, seed); }
+}
+
 function publicChallenge(c) { return { narration: c.narration || "Vamos a ver cuánto recuerdas...", question: c.question, hint: c.hint || "", type: c.type }; }
 
 async function start() {
