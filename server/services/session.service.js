@@ -1,7 +1,5 @@
 // Maneja el estado de sesiones en memoria (login por contraseña única + cookie).
-// Nota heredada del proyecto original: al vivir en un Map en memoria, las
-// sesiones se pierden si el proceso se reinicia (deploy, crash, etc.) y
-// solo soporta MAX_USERS conectados a la vez.
+// Las sesiones son intencionalmente efímeras y se limpian por inactividad.
 
 const crypto = require("crypto");
 const { config } = require("../config");
@@ -33,23 +31,30 @@ function cookieOptions() {
 }
 
 function createSession() {
+  cleanupSessions();
   if (sessions.size >= MAX_USERS) return null;
   const token = crypto.randomBytes(32).toString("hex");
-  sessions.set(token, { createdAt: Date.now(), lastSeen: Date.now() });
+  const now = Date.now();
+  sessions.set(token, { createdAt: now, lastSeen: now });
   return token;
 }
 
 function validSession(token) {
   if (!token || !sessions.has(token)) return false;
   const session = sessions.get(token);
-  if (Date.now() - session.lastSeen > SESSION_MAX_AGE_MS) { sessions.delete(token); return false; }
+  if (Date.now() - session.lastSeen > SESSION_MAX_AGE_MS) {
+    sessions.delete(token);
+    return false;
+  }
   session.lastSeen = Date.now();
   return true;
 }
 
 function cleanupSessions() {
   const now = Date.now();
-  for (const [token, session] of sessions) if (now - session.lastSeen > SESSION_MAX_AGE_MS) sessions.delete(token);
+  for (const [token, session] of sessions) {
+    if (now - session.lastSeen > SESSION_MAX_AGE_MS) sessions.delete(token);
+  }
 }
 
 function setSessionCookie(res, token) {
