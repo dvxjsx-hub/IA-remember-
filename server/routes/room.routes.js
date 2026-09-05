@@ -6,4 +6,8 @@ router.post("/rooms/create", authMiddleware, controller.create);
 router.post("/rooms/join", authMiddleware, controller.join);
 router.get("/rooms/state", authMiddleware, controller.state);
 router.post("/rooms/leave", authMiddleware, controller.leave);
+router.post("/rooms/game/start", authMiddleware, controller.startGame);
+router.get("/rooms/game/state", authMiddleware, controller.gameState);
+router.post("/rooms/game/answer", authMiddleware, controller.answerGame);
+router.post("/rooms/game/next", authMiddleware, controller.nextRound);
 module.exports = router;
