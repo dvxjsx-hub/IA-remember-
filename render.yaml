@@ -1,13 +1,11 @@
 services:
   - type: web
-    name: ia-remember
-    env: node
-    buildCommand: npm install && npm run index-memory
+    name: rivero-web-base
+    runtime: node
+    buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: NODE_VERSION
-        value: 20
-      - key: ACCESS_PASSWORD
+      - key: ACCESS_KEY
         sync: false
       - key: OPENAI_API_KEY
         sync: false
