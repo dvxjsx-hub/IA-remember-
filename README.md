@@ -1,7 +1,5 @@
-# Nueva base del proyecto
+# RIVEROS-CODINGFORLIFE
 
-Proyecto reiniciado desde cero.
-
-Las credenciales permanecen únicamente en las variables de entorno de Render; nunca se guardan en Git.
+This is the base for my next proyects... IA.
 
 Variables: `ACCESS_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`.
