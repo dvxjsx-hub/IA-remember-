@@ -1,11 +1,147 @@
-<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111"><title>riverojsx</title><style>*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#09090b;color:#eee;font-family:system-ui,-apple-system,Segoe UI,sans-serif}body{min-height:100dvh;display:grid;place-items:center;padding:18px}.card{width:min(520px,100%);background:#151518;border:1px solid #29292e;border-radius:24px;padding:24px;box-shadow:0 20px 60px #0008}.hidden{display:none!important}h1{margin:0 0 8px;font-size:30px}.muted{color:#9b9ba3}.input{width:100%;padding:15px;border-radius:14px;border:1px solid #38383f;background:#0e0e10;color:white;font-size:16px;margin:14px 0}.btn{width:100%;border:0;border-radius:14px;padding:15px;background:#fff;color:#111;font-weight:800;font-size:16px;cursor:pointer}.btn:disabled,.move:disabled{opacity:.45;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}.move{border:1px solid #36363d;background:#1d1d21;color:#fff;border-radius:18px;padding:18px 8px;font-size:28px;cursor:pointer}.move span{display:block;font-size:13px;margin-top:7px}.status{margin:16px 0;padding:14px;border-radius:14px;background:#101014;color:#cfcfd5;text-align:center}.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.stat{padding:11px;border-radius:12px;background:#101014;text-align:center}.players{display:grid;gap:8px;margin-top:14px}.player{display:flex;justify-content:space-between;padding:11px 13px;background:#101014;border-radius:12px}.champ{font-size:34px;font-weight:900;text-align:center;padding:28px 0}.error{color:#ff8d8d;margin-top:10px;font-size:14px}.online{font-size:13px;color:#9ee6a8;margin-top:12px;text-align:center}</style></head><body><section id="login" class="card"><h1>IA-remember</h1><div class="muted">Inicia sesión con tu nickname</div><input id="nickname" class="input" maxlength="20" placeholder="Tu nickname"><button id="loginBtn" class="btn">Iniciar sesión</button><div id="loginError" class="error"></div></section>
-<section id="home" class="card hidden"><h1>Hola, <span id="homeNick"></span> 👋</h1><p class="muted">Selecciona un modo.</p><div id="homeOnline" class="stats"><div class="stat">👥 Activos<br><b>0</b></div><div class="stat">🎮 Buscando<br><b>0</b></div></div><button id="rpsBtn" class="btn">🪨 Piedra, Papel o Tijera</button><div class="online">● Conectado al servidor en tiempo real</div></section>
-<section id="game" class="card hidden"><h1>🪨 Piedra, Papel o Tijera</h1><div id="gameBody"></div></section>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#dff1ff">
+<title>RIVER OUS</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#f7f8fc;color:#202633;font-family:Arial,Helvetica,sans-serif}
+body{min-height:100dvh}
+button,input{font:inherit}
+.hidden{display:none!important}
+
+.screen{min-height:100dvh;background:#f7f8fc}
+.topbar{height:112px;background:#dff1ff;border-bottom:5px solid #55b7e8;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;box-shadow:0 2px 0 #fff}
+.brand{font-size:42px;line-height:1;font-weight:1000;letter-spacing:-2px;color:#f8f8f8;-webkit-text-stroke:2px #29313c;text-shadow:3px 3px 0 #fff;white-space:nowrap}
+.beta{display:inline-block;margin-left:5px;padding:5px 9px;border-radius:8px;background:#ffbf28;color:#202020;font-size:16px;letter-spacing:0;-webkit-text-stroke:0;vertical-align:middle;box-shadow:0 2px 0 #242a31}
+.iconbtn{width:80px;height:80px;border:0;border-radius:15px;background:#7895a7;color:#fff;font-size:43px;box-shadow:0 7px 0 #536d7d;cursor:pointer}
+.flag{font-size:43px;line-height:1}
+.header-spacer{width:80px}
+
+.main{padding:54px 18px 150px;max-width:760px;margin:auto}
+.home-title{text-align:center;font-size:24px;margin:0 0 25px;font-weight:900;color:#303744}
+.games{display:grid;gap:25px;justify-items:center}
+.game-card{width:min(310px,92vw);border:0;border-radius:25px;background:#31a4e5;padding:14px 14px 20px;box-shadow:7px 9px 0 #111;cursor:pointer;transition:transform .12s}
+.game-card:active{transform:translateY(4px);box-shadow:4px 5px 0 #111}
+.game-image{height:175px;background:#fff;border:3px solid #252c35;border-radius:17px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.game-icon{font-size:72px;letter-spacing:-13px;filter:drop-shadow(2px 3px 0 #777)}
+.plus{position:absolute;right:10px;bottom:8px;width:35px;height:35px;border-radius:50%;background:#ffb829;color:#fff;border:3px solid #343434;font-size:26px;font-weight:900;line-height:27px}
+.game-name{margin-top:25px;color:#fff;font-size:28px;font-weight:1000;text-shadow:1px 2px 0 #26303a}
+.game-sub{margin-top:7px;color:#fff;font-size:16px;font-weight:800}
+
+.bottom-panel{position:fixed;bottom:0;left:0;right:0;height:128px;background:#a95a5a;display:flex;align-items:center;justify-content:center;padding:15px}
+.play-banner{width:min(390px,90vw);border:0;border-radius:23px;background:#48c75a;color:#fff;font-size:27px;font-weight:1000;padding:18px 20px;box-shadow:inset 0 0 0 6px #277d38,0 3px 0 #333;cursor:pointer}
+.play-banner:active{transform:translateY(2px)}
+
+.login-wrap{min-height:100dvh;display:grid;place-items:center;padding:20px;background:#dff1ff}
+.login-card{width:min(430px,100%);background:#fff;border:4px solid #27313b;border-radius:25px;padding:28px;box-shadow:8px 9px 0 #111;text-align:center}
+.login-card h1{font-size:38px;margin:0 0 10px;font-weight:1000}
+.input{width:100%;padding:15px;border-radius:13px;border:2px solid #77818b;background:#f6f8fa;margin:18px 0;font-size:17px;outline:none}
+.primary{width:100%;border:0;border-radius:14px;padding:16px;background:#31a4e5;color:#fff;font-weight:1000;font-size:18px;cursor:pointer;box-shadow:0 5px 0 #166b9b}
+.primary:active{transform:translateY(3px);box-shadow:0 2px 0 #166b9b}
+.error{color:#c33b3b;margin-top:12px;font-size:14px;font-weight:700}
+
+.game-main{padding:32px 18px 40px;max-width:650px;margin:auto}
+.game-head{text-align:center;margin-bottom:28px}
+.game-head h1{font-size:34px;margin:0 0 7px;font-weight:1000}
+.game-head p{margin:0;color:#69727d;font-weight:700}
+.menu-card{background:#31a4e5;border:4px solid #27313b;border-radius:25px;padding:20px;box-shadow:7px 9px 0 #111;text-align:center}
+.menu-logo{height:190px;background:#fff;border:3px solid #27313b;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:80px;letter-spacing:-15px}
+.menu-title{font-size:31px;color:#fff;font-weight:1000;text-shadow:2px 2px 0 #26303a;margin:22px 0 7px}
+.menu-desc{color:#fff;font-weight:800;margin:0 0 20px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:18px 0}
+.stat{padding:12px;border-radius:12px;background:#fff;border:2px solid #c8d0d7;text-align:center;font-weight:800}
+.status{margin:16px 0;padding:18px;border-radius:15px;background:#fff;border:2px solid #cbd3d9;text-align:center;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}
+.move{border:3px solid #27313b;background:#fff;color:#202633;border-radius:18px;padding:17px 8px;font-size:30px;cursor:pointer;box-shadow:0 4px 0 #27313b}
+.move span{display:block;font-size:13px;margin-top:7px;font-weight:900}
+.move:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.players{display:grid;gap:8px;margin-top:14px}
+.player{display:flex;justify-content:space-between;padding:12px 14px;background:#fff;border:2px solid #d2d8dd;border-radius:12px;font-weight:800}
+.champ{font-size:34px;font-weight:1000;text-align:center;padding:28px 0}
+.secondary{width:100%;border:0;border-radius:14px;padding:14px;background:#27313b;color:#fff;font-weight:900;cursor:pointer;margin-top:10px}
+.online{font-size:13px;color:#3b9b52;margin-top:16px;text-align:center;font-weight:800}
+
+@media(max-width:500px){
+ .topbar{height:102px;padding:12px 18px}.brand{font-size:34px}.beta{font-size:13px;padding:4px 7px}.iconbtn,.header-spacer{width:66px;height:66px}.iconbtn{font-size:36px}.flag{font-size:36px}
+ .main{padding-top:38px}.game-name{font-size:25px}.game-image{height:165px}.bottom-panel{height:118px}.play-banner{font-size:23px}
+}
+</style>
+</head>
+<body>
+
+<section id="login" class="login-wrap">
+  <div class="login-card">
+    <h1>RIVER OUS <span class="beta">BETA</span></h1>
+    <div>Inicia sesión con tu nickname</div>
+    <input id="nickname" class="input" maxlength="20" placeholder="Tu nickname">
+    <button id="loginBtn" class="primary">INICIAR SESIÓN</button>
+    <div id="loginError" class="error"></div>
+  </div>
+</section>
+
+<section id="home" class="screen hidden">
+  <header class="topbar">
+    <button class="iconbtn" aria-label="Configuración">⚙️</button>
+    <div class="brand">RIVER OUS <span class="beta">BETA</span></div>
+    <div class="header-spacer flag" aria-label="Colombia">🇨🇴</div>
+  </header>
+  <main class="main">
+    <h2 class="home-title">Hola, <span id="homeNick"></span> 👋</h2>
+    <div id="homeOnline" class="stats"></div>
+    <div class="games">
+      <button id="rpsBtn" class="game-card">
+        <div class="game-image"><div class="game-icon">🪨📄✂️</div><div class="plus">+</div></div>
+        <div class="game-name">PIEDRA, PAPEL O TIJERAS</div>
+        <div class="game-sub">Toca para entrar al juego</div>
+      </button>
+    </div>
+  </main>
+  <div class="bottom-panel">
+    <button id="quickPlay" class="play-banner">🏆 PLAY TOURNAMENT 🏆</button>
+  </div>
+</section>
+
+<section id="gameMenu" class="screen hidden">
+  <header class="topbar">
+    <button id="backHome" class="iconbtn" aria-label="Volver">←</button>
+    <div class="brand">RPS <span class="beta">BETA</span></div>
+    <div class="header-spacer flag">🇨🇴</div>
+  </header>
+  <main class="game-main">
+    <div class="game-head">
+      <h1>🪨 PIEDRA, PAPEL O TIJERAS ✂️</h1>
+      <p>Juego online • Torneo de 4 jugadores</p>
+    </div>
+    <div class="menu-card">
+      <div class="menu-logo">🪨 📄 ✂️</div>
+      <div class="menu-title">PLAY TOURNAMENT</div>
+      <p class="menu-desc">Entra a una partida de 4 jugadores y demuestra quién manda.</p>
+      <button id="startTournamentBtn" class="primary">🏆 BUSCAR PARTIDA</button>
+      <div id="gameOnline" class="stats"></div>
+    </div>
+  </main>
+</section>
+
+<section id="game" class="screen hidden">
+  <header class="topbar">
+    <button id="gameBack" class="iconbtn" aria-label="Volver">←</button>
+    <div class="brand">RPS <span class="beta">BETA</span></div>
+    <div class="header-spacer flag">🇨🇴</div>
+  </header>
+  <main class="game-main">
+    <div id="gameBody"></div>
+  </main>
+</section>
+
 <script>
 let token=localStorage.getItem('ia_token'),ws=null,pollTimer=null;
 const $=x=>document.getElementById(x);
-function show(x){['login','home','game'].forEach(id=>$(id).classList.toggle('hidden',id!==x))}
+function show(x){['login','home','gameMenu','game'].forEach(id=>$(id).classList.toggle('hidden',id!==x))}
 async function api(url,opt){const r=await fetch(url,opt);const d=await r.json();if(!r.ok)throw Error(d.error||'Error');return d}
+
 function connectSocket(){
   if(!token)return;
   try{
@@ -16,41 +152,93 @@ function connectSocket(){
     ws.onclose=()=>{if(token){if(!pollTimer)pollTimer=setInterval(state,4000);setTimeout(connectSocket,2500)}};
   }catch{if(!pollTimer)pollTimer=setInterval(state,4000)}
 }
+
 async function login(){
   try{
     const d=await api('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nickname:$('nickname').value})});
     token=d.token;localStorage.setItem('ia_token',token);$('homeNick').textContent=d.nickname;show('home');connectSocket();state();
   }catch(e){$('loginError').textContent=e.message}
 }
+
+function homeStats(d){
+  return '<div class="stat">👥 Activos<br><b>'+d.activePlayers+'</b></div><div class="stat">🎮 Buscando<br><b>'+d.waiting+' / 4</b></div>';
+}
+function updateGameOnline(d){$('gameOnline').innerHTML=homeStats(d)}
+
+async function openGameMenu(){
+  show('gameMenu');
+  try{
+    const d=await api('/api/state?token='+encodeURIComponent(token));
+    updateGameOnline(d);
+  }catch{updateGameOnline({activePlayers:0,waiting:0})}
+}
+
 async function queue(){
   show('game');
-  $('gameBody').innerHTML='<div class="status">🔎 <b>Buscando partida…</b><br><br>Jugadores encontrados: 0 / 4<br><br>Cuando haya 4 jugadores, la partida comenzará automáticamente.</div>';
+  $('gameBody').innerHTML='<div class="menu-card"><div class="menu-title">BUSCANDO PARTIDA…</div><div class="status">🔎 <b>Esperando jugadores</b><br><br>Jugadores encontrados: <b>0 / 4</b><br><br>Cuando haya 4 jugadores, el torneo comenzará automáticamente.</div></div>';
   try{await api('/api/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});state()}catch(e){$('gameBody').innerHTML='<div class="error">'+e.message+'</div>'}
 }
-async function leaveTournament(){try{await api('/api/leave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});show('home');state()}catch(e){alert(e.message)}}
-async function move(m){try{await api('/api/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,move:m})})}catch(e){alert(e.message)}}
-function onlineBox(d){return '<div class="stats"><div class="stat">👥 Jugadores activos<br><b>'+d.activePlayers+'</b></div><div class="stat">🎮 Buscando partida<br><b>'+d.waiting+' / 4</b></div></div>'}
+
+async function leaveTournament(){
+  try{await api('/api/leave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});show('gameMenu');state()}catch(e){alert(e.message)}
+}
+async function move(m){
+  try{await api('/api/move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,move:m})})}
+  catch(e){alert(e.message)}
+}
+
 function render(d){
   if(d.phase==='idle'){
-    show('home');$('homeOnline').innerHTML=onlineBox(d);return
+    show('home');$('homeOnline').innerHTML=homeStats(d);return
   }
-  show('game');let h=onlineBox(d);
+  if(d.phase==='waiting'||d.phase==='round'||d.phase==='final'||d.phase==='champion')show('game');
+
   if(d.phase==='waiting'){
-    h+='<div class="status">🔎 <b>Buscando partida…</b><br><br>Hay <b>'+d.waiting+' / 4</b> jugadores buscando.<br>El servidor iniciará el torneo automáticamente cuando lleguen 4.</div>';
-  }else if(d.phase==='round'||d.phase==='final'){
-    h+='<div class="status"><b>'+(d.phase==='final'?'🏆 FINAL':'Ronda '+d.round+' de 3')+'</b></div>';
+    $('gameBody').innerHTML='<div class="menu-card"><div class="menu-title">BUSCANDO PARTIDA</div><div class="status">🔎 <b>Buscando jugadores…</b><br><br>Hay <b>'+d.waiting+' / 4</b> jugadores buscando.<br>El servidor iniciará el torneo automáticamente cuando lleguen 4.</div><div class="stats">'+homeStats(d)+'</div></div>';
+    return
+  }
+
+  let h='<div class="game-head"><h1>'+(d.phase==='final'?'🏆 FINAL':'Ronda '+d.round+' de 3')+'</h1><p>Jugador: <b>'+d.me.nickname+'</b></p></div>';
+  h+='<div class="stats"><div class="stat">👥 Activos<br><b>'+d.activePlayers+'</b></div><div class="stat">🎮 Buscando<br><b>'+d.waiting+' / 4</b></div></div>';
+
+  if(d.phase==='round'||d.phase==='final'){
     if(d.current){
-      h+='<div class="status">Rival: <b>'+d.current.opponent+'</b><br><br>'+(d.current.chosen?'Movimiento enviado. Esperando al rival…':'Elige tu movimiento')+'</div>';
-      h+='<div class="grid">'+['piedra','papel','tijera'].map(x=>'<button class="move" onclick="move(\''+x+'\')" '+(d.current.chosen?'disabled':'')+'>'+({piedra:'🪨',papel:'📄',tijera:'✂️'}[x])+'<span>'+x+'</span></button>').join('')+'</div>';
-    }else h+='<div class="status">Esperando tu próximo enfrentamiento…</div>';
-  }else if(d.phase==='champion')h+='<div class="champ">🏆<br>'+d.champion+'<br><small>CAMPEÓN</small></div><button class="btn" onclick="leaveTournament()">Volver a buscar partida</button>';
+      h+='<div class="status">⚔️ Rival: <b>'+d.current.opponent+'</b><br><br>'+(d.current.chosen?'Movimiento enviado. Esperando al rival…':'Elige tu movimiento')+'</div>';
+      h+='<div class="grid">'+['piedra','papel','tijera'].map(x=>'<button class="move" onclick="move(\''+x+'\')" '+(d.current.chosen?'disabled':'')+'>'+({piedra:'🪨',papel:'📄',tijera:'✂️'}[x])+'<span>'+x.toUpperCase()+'</span></button>').join('')+'</div>';
+    }else h+='<div class="status">⏳ Esperando tu próximo enfrentamiento…</div>';
+  }else if(d.phase==='champion'){
+    h+='<div class="menu-card"><div class="champ">🏆<br>'+d.champion+'<br><small>CAMPEÓN</small></div><button class="primary" onclick="leaveTournament()">VOLVER AL MENÚ</button></div>';
+  }
+
   if(d.standings)h+='<h3>Clasificación</h3><div class="players">'+d.standings.map((p,i)=>'<div class="player"><span>'+(i+1)+'. '+p.nickname+'</span><b>'+p.wins+' W</b></div>').join('')+'</div>';
   $('gameBody').innerHTML=h
 }
-async function state(){if(!token)return;try{const d=await api('/api/state?token='+encodeURIComponent(token));render(d)}catch(e){localStorage.removeItem('ia_token');token=null;if(ws)ws.close();show('login')}}
+
+async function state(){
+  if(!token)return;
+  try{const d=await api('/api/state?token='+encodeURIComponent(token));render(d)}
+  catch(e){localStorage.removeItem('ia_token');token=null;if(ws)ws.close();show('login')}
+}
+
 $('loginBtn').onclick=login;
 $('nickname').onkeydown=e=>{if(e.key==='Enter')login()};
-$('rpsBtn').onclick=queue;
-if(token){state();connectSocket()}else show('login');
-setInterval(()=>{if(token){fetch('/api/ping',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})}).catch(()=>{});if(!ws||ws.readyState!==1)state()}},10000);
-</script></body></html>
+$('rpsBtn').onclick=openGameMenu;
+$('quickPlay').onclick=openGameMenu;
+$('startTournamentBtn').onclick=queue;
+$('backHome').onclick=()=>show('home');
+$('gameBack').onclick=()=>show('gameMenu');
+
+if(token){
+  state();
+  connectSocket();
+}else show('login');
+
+setInterval(()=>{
+  if(token){
+    fetch('/api/ping',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})}).catch(()=>{});
+    if(!ws||ws.readyState!==1)state();
+  }
+},10000);
+</script>
+</body>
+</html>
