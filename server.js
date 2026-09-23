@@ -7,7 +7,7 @@ const {WebSocketServer,WebSocket}=require('ws');
 const app=express();
 const PORT=process.env.PORT||3000;
 const server=http.createServer(app);
-const wss=new WebSocketServer({noServer:true});
+const wss=new WebSocketServer({server,path:'/ws'});
 
 app.disable('x-powered-by');
 app.use(express.json());
@@ -27,17 +27,33 @@ function activePlayers(){
   return [...players.values()].filter(p=>now-p.lastSeen<=30000).length;
 }
 function publicPlayer(p){return {id:p.id,nickname:p.nickname,wins:p.wins,losses:p.losses}}
-function broadcast(){
-  for(const [token,ws] of sockets){
-    if(ws.readyState===WebSocket.OPEN) sendState(token,ws);
+
+function safeSend(ws,payload){
+  try{
+    if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(payload));
+  }catch(err){
+    console.error('WebSocket send error:',err.message);
+    try{ws.close()}catch{}
   }
 }
 function sendState(token,ws){
   const p=playerByToken(token);
   if(!p)return;
   p.lastSeen=Date.now();
-  ws.send(JSON.stringify({type:'state',data:buildState(p)}));
+  safeSend(ws,{type:'state',data:buildState(p)});
 }
+function broadcast(){
+  for(const [token,ws] of sockets){
+    try{
+      if(ws.readyState===WebSocket.OPEN)sendState(token,ws);
+      else sockets.delete(token);
+    }catch(err){
+      console.error('Broadcast error:',err.message);
+      sockets.delete(token);
+    }
+  }
+}
+
 function buildState(p){
   const active=activePlayers();
   if(!tournament||!tournament.players.includes(p.id)){
@@ -45,68 +61,99 @@ function buildState(p){
   }
   const current=tournament.matches.find(m=>m.winner===null&&(m.a===p.id||m.b===p.id));
   const me=publicPlayer(p);
-  const standings=tournament.players.map(x=>publicPlayer(players.get(x))).sort((a,b)=>(b.wins-a.wins)||(a.losses-b.losses));
-  if(tournament.phase==='final'&&tournament.matches[0].winner){
+  const standings=tournament.players
+    .map(x=>players.get(x))
+    .filter(Boolean)
+    .map(publicPlayer)
+    .sort((a,b)=>(b.wins-a.wins)||(a.losses-b.losses));
+  if(tournament.phase==='final'&&tournament.matches[0]&&tournament.matches[0].winner){
     tournament.champion=tournament.matches[0].winner;
     tournament.phase='champion';
   }
+  const finalMatch=tournament.matches[0];
   return {
     phase:tournament.phase,
     round:tournament.roundIndex+1,
     me,standings,activePlayers:active,
     current:current?{
       id:current.id,
-      opponent:players.get(current.a===p.id?current.b:current.a).nickname,
+      opponent:players.get(current.a===p.id?current.b:current.a)?.nickname||'Rival',
       chosen:Boolean(current.moves[p.id]),
       opponentChosen:Boolean(current.moves[current.a===p.id?current.b:current.a])
     }:null,
-    champion:tournament.champion?players.get(tournament.champion).nickname:null,
-    finalists:tournament.phase==='final'?[players.get(tournament.matches[0].a).nickname,players.get(tournament.matches[0].b).nickname]:null,
+    champion:tournament.champion?players.get(tournament.champion)?.nickname:null,
+    finalists:tournament.phase==='final'&&finalMatch
+      ?[players.get(finalMatch.a)?.nickname||'Jugador',players.get(finalMatch.b)?.nickname||'Jugador']:null,
     waiting:waiting.length
   };
 }
+
 function makeRound(t){
   const schedule=[[[0,1],[2,3]],[[0,2],[1,3]],[[0,3],[1,2]]];
-  t.matches=schedule[t.roundIndex].map((pair,index)=>({
-    id:id(),round:t.roundIndex+1,a:t.players[pair[0]],b:t.players[pair[1]],moves:{},winner:null,draws:0,createdAt:Date.now(),index
+  const pairs=schedule[t.roundIndex];
+  t.matches=pairs.map((pair,index)=>({
+    id:id(),round:t.roundIndex+1,a:t.players[pair[0]],b:t.players[pair[1]],
+    moves:{},winner:null,draws:0,createdAt:Date.now(),index
   }));
 }
+
 function result(a,b){
   if(a===b)return 0;
   if((a==='piedra'&&b==='tijera')||(a==='papel'&&b==='piedra')||(a==='tijera'&&b==='papel'))return 1;
   return 2;
 }
+
 function startTournament(){
-  if(tournament||waiting.length<4)return;
+  if(tournament||waiting.length<4)return false;
   const ids=waiting.splice(0,4);
+  if(ids.length!==4)return false;
   tournament={id:id(),players:ids,roundIndex:0,matches:[],phase:'round',champion:null,createdAt:Date.now()};
-  ids.forEach((pid,i)=>{
-    const p=players.get(pid);
-    p.tournamentId=tournament.id;p.seed=i;p.wins=0;p.losses=0;p.lastMatch=null;
-  });
+  for(let i=0;i<ids.length;i++){
+    const p=players.get(ids[i]);
+    if(!p){
+      console.error('Tournament start aborted: player session missing');
+      tournament=null;
+      waiting.unshift(...ids.filter(x=>players.has(x)));
+      return false;
+    }
+    p.tournamentId=tournament.id;
+    p.seed=i;
+    p.wins=0;
+    p.losses=0;
+    p.lastMatch=null;
+  }
   makeRound(tournament);
+  console.log('Tournament started:',tournament.id,'players:',ids.length);
   broadcast();
+  return true;
 }
+
 function finishMatch(m){
+  if(!tournament||!m)return;
+  const a=players.get(m.a),b=players.get(m.b);
+  if(!a||!b)return;
   const r=result(m.moves[m.a],m.moves[m.b]);
   if(r===0){m.moves={};m.draws++;broadcast();return}
   m.winner=r===1?m.a:m.b;
   const loser=r===1?m.b:m.a;
   players.get(m.winner).wins++;
   players.get(loser).losses++;
-  players.get(m.a).lastMatch={opponent:players.get(m.b).nickname,result:m.winner===m.a?'win':'loss'};
-  players.get(m.b).lastMatch={opponent:players.get(m.a).nickname,result:m.winner===m.b?'win':'loss'};
+  a.lastMatch={opponent:b.nickname,result:m.winner===m.a?'win':'loss'};
+  b.lastMatch={opponent:a.nickname,result:m.winner===m.b?'win':'loss'};
+
   if(tournament.matches.every(x=>x.winner)){
     if(tournament.roundIndex<2){
       tournament.roundIndex++;
       makeRound(tournament);
     }else{
       const ranked=tournament.players.slice().sort((x,y)=>{
-        const a=players.get(x),b=players.get(y);
-        return (b.wins-a.wins)||(a.losses-b.losses)||(a.seed-b.seed);
+        const px=players.get(x),py=players.get(y);
+        return (py.wins-px.wins)||(px.losses-py.losses)||(px.seed-py.seed);
       });
       tournament.phase='final';
-      tournament.matches=[{id:id(),round:4,a:ranked[0],b:ranked[1],moves:{},winner:null,draws:0,createdAt:Date.now(),index:0}];
+      tournament.matches=[{
+        id:id(),round:4,a:ranked[0],b:ranked[1],moves:{},winner:null,draws:0,createdAt:Date.now(),index:0
+      }];
     }
   }
   broadcast();
@@ -116,10 +163,12 @@ function cleanup(){
   const now=Date.now();
   for(const [token,p] of players){
     if(now-p.lastSeen>60000&&(!tournament||!tournament.players.includes(p.id))){
-      const i=waiting.indexOf(p.id);if(i>=0)waiting.splice(i,1);
+      const i=waiting.indexOf(p.id);
+      if(i>=0)waiting.splice(i,1);
       players.delete(token);
-      sockets.get(token)?.close();
+      const ws=sockets.get(token);
       sockets.delete(token);
+      try{ws?.close()}catch{}
     }
   }
   broadcast();
@@ -140,10 +189,17 @@ app.post('/api/queue',(req,res)=>{
   const p=playerByToken(req.body&&req.body.token);
   if(!p)return res.status(401).json({error:'Sesión no válida.'});
   p.lastSeen=Date.now();
-  if(p.tournamentId)return res.json({status:'in_game'});
+  if(p.tournamentId)return res.json({status:'in_game',waiting:waiting.length,activePlayers:activePlayers()});
   if(!waiting.includes(p.id))waiting.push(p.id);
-  startTournament();
-  res.json({status:tournament&&tournament.players.includes(p.id)?'matched':'waiting',position:waiting.indexOf(p.id)+1,waiting:waiting.length,activePlayers:activePlayers()});
+  const started=startTournament();
+  const matched=Boolean(tournament&&tournament.players.includes(p.id));
+  res.json({
+    status:matched?'matched':'waiting',
+    position:matched?0:waiting.indexOf(p.id)+1,
+    waiting:waiting.length,
+    activePlayers:activePlayers(),
+    started
+  });
   broadcast();
 });
 
@@ -189,30 +245,38 @@ app.post('/api/leave',(req,res)=>{
   res.json({ok:true});
   broadcast();
 });
-app.get('/api/health',(_req,res)=>res.json({ok:true,players:players.size,activePlayers:activePlayers(),waiting:waiting.length,tournament:Boolean(tournament)}));
 
-server.on('upgrade',(req,socket,head)=>{
-  if(req.url.startsWith('/ws')){
-    wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws,req));
-  }else socket.destroy();
-});
+app.get('/api/health',(_req,res)=>res.json({
+  ok:true,players:players.size,activePlayers:activePlayers(),waiting:waiting.length,tournament:Boolean(tournament)
+}));
+
 wss.on('connection',(ws,req)=>{
   const url=new URL(req.url,'http://localhost');
   const token=url.searchParams.get('token');
-  if(!playerByToken(token)){ws.close(1008,'Sesión no válida');return}
+  const p=playerByToken(token);
+  if(!p){try{ws.close(1008,'Sesión no válida')}catch{};return}
+  const old=sockets.get(token);
+  if(old&&old!==ws){try{old.close()}catch{}}
   sockets.set(token,ws);
   sendState(token,ws);
+  ws.on('error',err=>console.error('WebSocket client error:',err.message));
   ws.on('close',()=>{if(sockets.get(token)===ws)sockets.delete(token)});
   ws.on('message',raw=>{
     try{
       const msg=JSON.parse(raw.toString());
       if(msg.type==='ping'){
-        const p=playerByToken(token);
-        if(p){p.lastSeen=Date.now();ws.send(JSON.stringify({type:'pong',activePlayers:activePlayers()}))}
+        const current=playerByToken(token);
+        if(current){
+          current.lastSeen=Date.now();
+          safeSend(ws,{type:'pong',activePlayers:activePlayers()});
+        }
       }
-    }catch{}
+    }catch(err){console.error('WebSocket message error:',err.message)}
   });
 });
+
+process.on('uncaughtException',err=>console.error('Uncaught exception:',err));
+process.on('unhandledRejection',err=>console.error('Unhandled rejection:',err));
 
 app.get('{*splat}',(_req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 server.listen(PORT,()=>console.log('Server running on '+PORT+' with WebSocket real-time'));
