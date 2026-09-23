@@ -22,6 +22,7 @@ const id=()=>crypto.randomBytes(12).toString('hex');
 
 function cleanNickname(value){return String(value||'').trim().replace(/\s+/g,' ').slice(0,20)}
 function playerByToken(token){return players.get(token)}
+function playerById(playerId){for(const p of players.values()){if(p.id===playerId)return p}return null}
 function activePlayers(){
   const now=Date.now();
   return [...players.values()].filter(p=>now-p.lastSeen<=30000).length;
@@ -62,7 +63,7 @@ function buildState(p){
   const current=tournament.matches.find(m=>m.winner===null&&(m.a===p.id||m.b===p.id));
   const me=publicPlayer(p);
   const standings=tournament.players
-    .map(x=>players.get(x))
+    .map(x=>playerById(x))
     .filter(Boolean)
     .map(publicPlayer)
     .sort((a,b)=>(b.wins-a.wins)||(a.losses-b.losses));
@@ -77,13 +78,13 @@ function buildState(p){
     me,standings,activePlayers:active,
     current:current?{
       id:current.id,
-      opponent:players.get(current.a===p.id?current.b:current.a)?.nickname||'Rival',
+      opponent:playerById(current.a===p.id?current.b:current.a)?.nickname||'Rival',
       chosen:Boolean(current.moves[p.id]),
       opponentChosen:Boolean(current.moves[current.a===p.id?current.b:current.a])
     }:null,
-    champion:tournament.champion?players.get(tournament.champion)?.nickname:null,
+    champion:tournament.champion?playerById(tournament.champion)?.nickname:null,
     finalists:tournament.phase==='final'&&finalMatch
-      ?[players.get(finalMatch.a)?.nickname||'Jugador',players.get(finalMatch.b)?.nickname||'Jugador']:null,
+      ?[playerById(finalMatch.a)?.nickname||'Jugador',playerById(finalMatch.b)?.nickname||'Jugador']:null,
     waiting:waiting.length
   };
 }
@@ -109,11 +110,11 @@ function startTournament(){
   if(ids.length!==4)return false;
   tournament={id:id(),players:ids,roundIndex:0,matches:[],phase:'round',champion:null,createdAt:Date.now()};
   for(let i=0;i<ids.length;i++){
-    const p=players.get(ids[i]);
+    const p=playerById(ids[i]);
     if(!p){
       console.error('Tournament start aborted: player session missing');
       tournament=null;
-      waiting.unshift(...ids.filter(x=>players.has(x)));
+      waiting.unshift(...ids.filter(x=>playerById(x)));
       return false;
     }
     p.tournamentId=tournament.id;
@@ -130,14 +131,14 @@ function startTournament(){
 
 function finishMatch(m){
   if(!tournament||!m)return;
-  const a=players.get(m.a),b=players.get(m.b);
+  const a=playerById(m.a),b=playerById(m.b);
   if(!a||!b)return;
   const r=result(m.moves[m.a],m.moves[m.b]);
   if(r===0){m.moves={};m.draws++;broadcast();return}
   m.winner=r===1?m.a:m.b;
   const loser=r===1?m.b:m.a;
-  players.get(m.winner).wins++;
-  players.get(loser).losses++;
+  playerById(m.winner).wins++;
+  playerById(loser).losses++;
   a.lastMatch={opponent:b.nickname,result:m.winner===m.a?'win':'loss'};
   b.lastMatch={opponent:a.nickname,result:m.winner===m.b?'win':'loss'};
 
@@ -147,7 +148,7 @@ function finishMatch(m){
       makeRound(tournament);
     }else{
       const ranked=tournament.players.slice().sort((x,y)=>{
-        const px=players.get(x),py=players.get(y);
+        const px=playerById(x),py=playerById(y);
         return (py.wins-px.wins)||(px.losses-py.losses)||(px.seed-py.seed);
       });
       tournament.phase='final';
