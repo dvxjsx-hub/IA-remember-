@@ -158,6 +158,7 @@ app.get('/api/state',(req,res)=>{
   });
 });
 
+app.post('/api/leave',(req,res)=>{const p=playerByToken(req.body&&req.body.token);if(!p)return res.status(401).json({error:'Sesión no válida.'});if(tournament&&tournament.phase==='champion'){tournament.players.forEach(pid=>{const x=[...players.values()].find(v=>v.id===pid);if(x)x.tournamentId=null;});tournament=null;}p.tournamentId=null;res.json({ok:true});});
 app.get('/api/health',(_req,res)=>res.json({ok:true,players:players.size,waiting:waiting.length}));
-app.get('*',(_req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
+app.get('{*splat}',(_req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT,()=>console.log('Server running on '+PORT));
