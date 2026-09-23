@@ -26,15 +26,14 @@ function publicPlayer(p){
   return {id:p.id,nickname:p.nickname,wins:p.wins,losses:p.losses};
 }
 function makeRound(t){
-  const pairs=[];
-  const ps=t.players.slice();
-  for(let i=0;i<ps.length;i++){
-    for(let j=i+1;j<ps.length;j++){
-      if((i+j)%3===t.roundIndex) pairs.push([ps[i],ps[j]]);
-    }
-  }
+  const schedule=[
+    [[0,1],[2,3]],
+    [[0,2],[1,3]],
+    [[0,3],[1,2]]
+  ];
+  const pairs=schedule[t.roundIndex];
   t.matches=pairs.map((pair,index)=>({
-    id:id(),round:t.roundIndex+1,a:pair[0],b:pair[1],moves:{},winner:null,draws:0,createdAt:Date.now(),index
+    id:id(),round:t.roundIndex+1,a:t.players[pair[0]],b:t.players[pair[1]],moves:{},winner:null,draws:0,createdAt:Date.now(),index
   }));
 }
 function result(a,b){
